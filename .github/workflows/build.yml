@@ -1,0 +1,25 @@
+name: Build Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y bc build-essential clang flex bison libssl-dev libelf-dev
+      - name: Get proton-clang
+        run: git clone --depth=1 https://github.com/kdrag0n/proton-clang /tmp/clang
+      - name: Build
+        run: |
+          export PATH=/tmp/clang/bin:$PATH
+          export ARCH=arm64
+          export SUBARCH=arm64
+          make O=out cheeseburger_defconfig
+          make O=out -j$(nproc)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kernel-out
+          path: out/arch/arm64/boot/
