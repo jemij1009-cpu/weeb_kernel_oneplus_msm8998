@@ -1,0 +1,51 @@
+name: Build OnePlus5 Kernel (cheeseburger)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ enable-zram, main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    env:
+      ARCH: arm64
+      O: out
+
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Install deps
+        run: |
+          sudo apt update
+          sudo apt install -y bc bison build-essential ccache flex libssl-dev libelf-dev \
+            libncurses5-dev device-tree-compiler wget unzip
+
+      - name: Get proton-clang
+        run: |
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git /tmp/proton-clang
+          echo "PATH=/tmp/proton-clang/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Build kernel
+        run: |
+          DEFCONFIG="cheeseburger_defconfig"
+          make O=$O ARCH=$ARCH $DEFCONFIG
+          make -j$(nproc) O=$O ARCH=$ARCH LLVM=1 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu-
+        shell: bash
+
+      - name: Package AnyKernel3 (zip)
+        run: |
+          rm -rf AnyKernel3
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+          cp $O/arch/arm64/boot/Image AnyKernel3/ 2>/dev/null || true
+          cp $O/arch/arm64/boot/Image.gz-dtb AnyKernel3/ 2>/dev/null || true
+          cd AnyKernel3 && zip -r ../cheeseburger-anykernel-$(date +%F).zip *
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cheeseburger-artifacts
+          path: |
+            out/**
+            cheeseburger-anykernel-*.zip
